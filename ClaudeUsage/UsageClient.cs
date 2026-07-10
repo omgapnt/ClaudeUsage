@@ -61,10 +61,13 @@ public class UsageClient
 
     public UsageClient()
     {
-        _credentialsPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".claude",
-            ".credentials.json");
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var userProfileEnv = Environment.GetEnvironmentVariable("USERPROFILE") ?? "(not set)";
+        var baseDir = AppContext.BaseDirectory;
+
+        DebugLog.WriteLine($"UsageClient construct: UserProfile={userProfile}, USERPROFILE env={userProfileEnv}, BaseDirectory={baseDir}");
+
+        _credentialsPath = Path.Combine(userProfile, ".claude", ".credentials.json");
         StartBackgroundRefresh();
     }
 
@@ -86,11 +89,18 @@ public class UsageClient
     {
         try
         {
+            var credentialsExist = File.Exists(_credentialsPath);
+            DebugLog.WriteLine($"FetchAsync: credentialsPath={_credentialsPath}, exists={credentialsExist}");
+
             var token = ReadToken();
             if (string.IsNullOrEmpty(token))
             {
+                DebugLog.WriteLine($"FetchAsync: token is null/empty, returning NoCredentials");
                 return new UsageResult(UsageFailureReason.NoCredentials);
             }
+
+            DebugLog.WriteLine($"FetchAsync: token length={token.Length}, expiresAt=(N/A)");
+            DebugLog.WriteLine($"FetchAsync: sending GET {ApiUrl} with Authorization Bearer, anthropic-beta={ApiVersion}, User-Agent={UserAgent}");
 
             using var request = new HttpRequestMessage(HttpMethod.Get, ApiUrl);
             request.Headers.Add("Authorization", $"Bearer {token}");
@@ -98,12 +108,19 @@ public class UsageClient
             request.Headers.TryAddWithoutValidation("User-Agent", UserAgent);
 
             using var response = await HttpClient.SendAsync(request);
+            var statusCode = (int)response.StatusCode;
+            DebugLog.WriteLine($"FetchAsync: received status {statusCode}");
+
             if (!response.IsSuccessStatusCode)
             {
-                return new UsageResult(UsageFailureReason.HttpError, HttpStatusCode: (int)response.StatusCode);
+                var errorBody = await response.Content.ReadAsStringAsync();
+                var errorPreview = errorBody.Length > 200 ? errorBody.Substring(0, 200) : errorBody;
+                DebugLog.WriteLine($"FetchAsync: error response body (first 200 chars): {errorPreview}");
+                return new UsageResult(UsageFailureReason.HttpError, HttpStatusCode: statusCode);
             }
 
             var content = await response.Content.ReadAsStringAsync();
+            DebugLog.WriteLine($"FetchAsync: response body length={content.Length}, first 500 chars: {(content.Length > 500 ? content.Substring(0, 500) : content)}");
 
             using var doc = JsonDocument.Parse(content);
             var root = doc.RootElement;
@@ -139,22 +156,27 @@ public class UsageClient
                 FetchedAt: DateTime.UtcNow);
 
             _lastFetch = DateTime.UtcNow;
+            DebugLog.WriteLine($"FetchAsync: OK session={_cachedSnapshot.SessionLeftPercent:F1}% weekly={_cachedSnapshot.WeeklyLeftPercent:F1}%");
             return new UsageResult(UsageFailureReason.Ok, _cachedSnapshot);
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
+            DebugLog.WriteLine($"FetchAsync: HttpRequestException: {ex}");
             return new UsageResult(UsageFailureReason.NetworkError);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
+            DebugLog.WriteLine($"FetchAsync: OperationCanceledException: {ex}");
             return new UsageResult(UsageFailureReason.NetworkError);
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
+            DebugLog.WriteLine($"FetchAsync: JsonException: {ex}");
             return new UsageResult(UsageFailureReason.ParseError);
         }
-        catch
+        catch (Exception ex)
         {
+            DebugLog.WriteLine($"FetchAsync: Unexpected exception: {ex}");
             return new UsageResult(UsageFailureReason.ParseError);
         }
     }
@@ -165,19 +187,32 @@ public class UsageClient
         {
             if (!File.Exists(_credentialsPath))
             {
+                DebugLog.WriteLine($"ReadToken: credentials file does not exist at {_credentialsPath}");
                 return null;
             }
 
             var json = File.ReadAllText(_credentialsPath);
             using var doc = JsonDocument.Parse(json);
-            return doc.RootElement
+            var result = doc.RootElement
                 .TryGetProperty("claudeAiOauth", out var oauth) &&
                 oauth.TryGetProperty("accessToken", out var token)
                 ? token.GetString()
                 : null;
+
+            if (result != null)
+            {
+                DebugLog.WriteLine($"ReadToken: successfully read token, length={result.Length}");
+            }
+            else
+            {
+                DebugLog.WriteLine($"ReadToken: credentials file exists but claudeAiOauth.accessToken not found");
+            }
+
+            return result;
         }
-        catch
+        catch (Exception ex)
         {
+            DebugLog.WriteLine($"ReadToken: exception reading credentials: {ex}");
             return null;
         }
     }
@@ -193,6 +228,11 @@ public class UsageClient
                 return null;
             }
             current = next;
+            // Handle null values in the path
+            if (current.ValueKind == JsonValueKind.Null)
+            {
+                return null;
+            }
         }
 
         // Only return string if the element is actually a string
@@ -214,6 +254,11 @@ public class UsageClient
                 return null;
             }
             current = next;
+            // Handle null values in the path
+            if (current.ValueKind == JsonValueKind.Null)
+            {
+                return null;
+            }
         }
 
         // If it's a number, get it directly
