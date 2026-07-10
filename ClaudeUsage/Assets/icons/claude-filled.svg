@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#D97757">
+  <!-- 8-spoke starburst, filled style -->
+  <!-- Center circle -->
+  <circle cx="12" cy="12" r="2"/>
+  <!-- 8 spokes as thin rectangles -->
+  <rect x="11" y="1" width="2" height="5" fill="#D97757"/>
+  <rect x="11" y="18" width="2" height="5" fill="#D97757"/>
+  <rect x="1" y="11" width="5" height="2" fill="#D97757"/>
+  <rect x="18" y="11" width="5" height="2" fill="#D97757"/>
+  <!-- Diagonal spokes -->
+  <g transform="translate(12,12) rotate(45)">
+    <rect x="-1" y="-6.5" width="2" height="5" fill="#D97757"/>
+    <rect x="-1" y="1.5" width="2" height="5" fill="#D97757"/>
+  </g>
+</svg>

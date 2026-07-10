@@ -1,0 +1,10 @@
+bin/
+obj/
+.vs/
+*.pfx
+*.cer
+*.msix
+dist/
+msix-staging/
+*.log
+*.user
