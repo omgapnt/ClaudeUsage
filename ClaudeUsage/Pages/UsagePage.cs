@@ -19,13 +19,18 @@ internal sealed class UsagePage : ContentPage
     public override IContent[] GetContent()
     {
         UsageSnapshot? snapshot = null;
+        UsageFailureReason failureReason = UsageFailureReason.Ok;
+        int? httpStatus = null;
         try
         {
-            snapshot = _client.GetAsync(force: false).Result;
+            var result = _client.GetAsync(force: false).Result;
+            snapshot = result.Snapshot;
+            failureReason = result.Reason;
+            httpStatus = result.HttpStatusCode;
         }
         catch { }
 
-        var md = new MarkdownContent(BuildMarkdown(snapshot));
+        var md = new MarkdownContent(BuildMarkdown(snapshot, failureReason, httpStatus));
         var form = new FormContent
         {
             TemplateJson = """
@@ -47,11 +52,19 @@ internal sealed class UsagePage : ContentPage
         return [md, form];
     }
 
-    private string BuildMarkdown(UsageSnapshot? snapshot)
+    private string BuildMarkdown(UsageSnapshot? snapshot, UsageFailureReason failureReason, int? httpStatus)
     {
         if (snapshot == null)
         {
-            return "# Claude usage\n\nNo credentials found. Sign in to Claude Code to start tracking usage.";
+            var errorMsg = failureReason switch
+            {
+                UsageFailureReason.NoCredentials => "No credentials found. Sign in to Claude Code to start tracking usage.",
+                UsageFailureReason.HttpError => $"API error {httpStatus}. Please try again later.",
+                UsageFailureReason.NetworkError => "Network error. Please check your connection.",
+                UsageFailureReason.ParseError => "Failed to parse usage data. Please try again later.",
+                _ => "Failed to fetch usage data."
+            };
+            return $"# Claude usage\n\n{errorMsg}";
         }
 
         var sb = new StringBuilder();

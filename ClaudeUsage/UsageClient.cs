@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -20,6 +21,26 @@ public record LimitInfo(
     double PercentUsed,
     DateTime ResetsAt,
     string? ModelDisplayName = null);
+
+/// <summary>
+/// Failure reason for usage fetch
+/// </summary>
+public enum UsageFailureReason
+{
+    Ok,
+    NoCredentials,
+    HttpError,
+    NetworkError,
+    ParseError
+}
+
+/// <summary>
+/// Result of a usage fetch operation
+/// </summary>
+public record UsageResult(
+    UsageFailureReason Reason,
+    UsageSnapshot? Snapshot = null,
+    int? HttpStatusCode = null);
 
 /// <summary>
 /// Fetches usage data from Claude API with caching and background refresh
@@ -48,54 +69,41 @@ public class UsageClient
     }
 
     /// <summary>
-    /// Get usage snapshot, using cache if fresher than CacheMaxAgeSeconds
+    /// Get usage snapshot, using cache if fresher than CacheMaxAgeSeconds.
+    /// Returns result with failure reason if unsuccessful.
     /// </summary>
-    public async Task<UsageSnapshot?> GetAsync(bool force = false)
+    public async Task<UsageResult> GetAsync(bool force = false)
     {
         if (!force && _cachedSnapshot != null && (DateTime.UtcNow - _cachedSnapshot.FetchedAt).TotalSeconds < CacheMaxAgeSeconds)
         {
-            return _cachedSnapshot;
+            return new UsageResult(UsageFailureReason.Ok, _cachedSnapshot);
         }
 
         return await FetchAsync();
     }
 
-    private async Task<UsageSnapshot?> FetchAsync()
+    private async Task<UsageResult> FetchAsync()
     {
         try
         {
             var token = ReadToken();
             if (string.IsNullOrEmpty(token))
             {
-                return null;
+                return new UsageResult(UsageFailureReason.NoCredentials);
             }
-
-            var headers = new Dictionary<string, string>
-            {
-                { "Authorization", $"Bearer {token}" },
-                { "anthropic-beta", ApiVersion },
-                { "User-Agent", UserAgent },
-                { "Content-Type", "application/json" }
-            };
 
             using var request = new HttpRequestMessage(HttpMethod.Get, ApiUrl);
-            foreach (var (key, value) in headers)
-            {
-                request.Headers.Add(key, value);
-            }
+            request.Headers.Add("Authorization", $"Bearer {token}");
+            request.Headers.Add("anthropic-beta", ApiVersion);
+            request.Headers.TryAddWithoutValidation("User-Agent", UserAgent);
 
             using var response = await HttpClient.SendAsync(request);
             if (!response.IsSuccessStatusCode)
             {
-                return null;
+                return new UsageResult(UsageFailureReason.HttpError, HttpStatusCode: (int)response.StatusCode);
             }
 
             var content = await response.Content.ReadAsStringAsync();
-            var options = new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-            };
 
             using var doc = JsonDocument.Parse(content);
             var root = doc.RootElement;
@@ -131,11 +139,23 @@ public class UsageClient
                 FetchedAt: DateTime.UtcNow);
 
             _lastFetch = DateTime.UtcNow;
-            return _cachedSnapshot;
+            return new UsageResult(UsageFailureReason.Ok, _cachedSnapshot);
+        }
+        catch (HttpRequestException)
+        {
+            return new UsageResult(UsageFailureReason.NetworkError);
+        }
+        catch (OperationCanceledException)
+        {
+            return new UsageResult(UsageFailureReason.NetworkError);
+        }
+        catch (JsonException)
+        {
+            return new UsageResult(UsageFailureReason.ParseError);
         }
         catch
         {
-            return null;
+            return new UsageResult(UsageFailureReason.ParseError);
         }
     }
 
@@ -174,17 +194,46 @@ public class UsageClient
             }
             current = next;
         }
+
+        // Only return string if the element is actually a string
+        if (current.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
         return current.GetString();
     }
 
     private double? GetDouble(JsonElement element, string path)
     {
-        var str = GetString(element, path);
-        if (string.IsNullOrEmpty(str) || !double.TryParse(str, out var value))
+        var parts = path.Split('.');
+        var current = element;
+        foreach (var part in parts)
         {
-            return null;
+            if (!current.TryGetProperty(part, out var next))
+            {
+                return null;
+            }
+            current = next;
         }
-        return value;
+
+        // If it's a number, get it directly
+        if (current.ValueKind == JsonValueKind.Number)
+        {
+            if (current.TryGetDouble(out var doubleValue))
+            {
+                return doubleValue;
+            }
+        }
+        // If it's a string, try parsing it
+        else if (current.ValueKind == JsonValueKind.String)
+        {
+            var str = current.GetString();
+            if (str != null && double.TryParse(str, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedValue))
+            {
+                return parsedValue;
+            }
+        }
+        return null;
     }
 
     private DateTime ParseDateTime(string? isoString)

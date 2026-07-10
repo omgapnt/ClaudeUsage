@@ -27,14 +27,24 @@ internal sealed class UsageBand
     {
         try
         {
-            var snapshot = await _client.GetAsync();
-            if (snapshot == null)
+            var result = await _client.GetAsync();
+
+            if (result.Reason != UsageFailureReason.Ok || result.Snapshot == null)
             {
-                SetTitle("Claude —", "sign in to Claude Code");
+                var errorMessage = result.Reason switch
+                {
+                    UsageFailureReason.NoCredentials => "sign in to Claude Code",
+                    UsageFailureReason.HttpError => $"API error {result.HttpStatusCode}",
+                    UsageFailureReason.NetworkError => "offline",
+                    UsageFailureReason.ParseError => "parse error",
+                    _ => "error fetching usage"
+                };
+                SetTitle("Claude —", errorMessage);
                 ApplyIcon(quiet: true);
                 return;
             }
 
+            var snapshot = result.Snapshot;
             var sessionLeft = (int)Math.Round(snapshot.SessionLeftPercent);
             var weeklyLeft = (int)Math.Round(snapshot.WeeklyLeftPercent);
             var resetLocal = snapshot.SessionResetsAt.ToLocalTime();
