@@ -49,20 +49,31 @@ Write-Host "[5/6] Sign MSIX"
 & $signTool sign /fd SHA256 /a /f $pfx /p $pwd $msix | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "signtool failed" }
 
-Write-Host "[6/6] Install (will prompt UAC)"
-$installScript = @"
+Write-Host "[6/6] Install"
+$trusted = Get-ChildItem Cert:\LocalMachine\TrustedPeople | Where-Object { $_.Thumbprint -eq $cert.Thumbprint }
+if (-not $trusted) {
+  # Cert import needs admin; only elevate on first install.
+  $installScript = @"
 `$ErrorActionPreference = 'Stop'
 Import-Certificate -FilePath '$cer' -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
 Add-AppxPackage -Path '$msix' -ForceTargetApplicationShutdown
 "@
-$installScriptPath = Join-Path $bin "elevated-install.ps1"
-Set-Content -Path $installScriptPath -Value $installScript
-$proc = Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-File","`"$installScriptPath`"" -PassThru -Wait
-if ($proc.ExitCode -ne 0) { Write-Warning "Elevated install exit code $($proc.ExitCode)" }
+  $installScriptPath = Join-Path $bin "elevated-install.ps1"
+  Set-Content -Path $installScriptPath -Value $installScript
+  $proc = Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-File","`"$installScriptPath`"" -PassThru -Wait
+  if ($proc.ExitCode -ne 0) { throw "Elevated install failed (exit code $($proc.ExitCode)) — package NOT updated" }
+} else {
+  Add-AppxPackage -Path $msix -ForceTargetApplicationShutdown
+}
+$installed = (Get-AppxPackage -Name "Mathias.ClaudeUsage").Version
+$expected = ([xml](Get-Content (Join-Path $proj "Package.appxmanifest"))).Package.Identity.Version
+if ($installed -ne $expected) { throw "Installed version $installed does not match manifest $expected — install failed" }
 
 Write-Host ""
 Write-Host "Restarting CmdPal..."
 Get-Process -Name "Microsoft.CmdPal.UI" -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Sleep -Seconds 2
+explorer.exe "shell:AppsFolder\Microsoft.CommandPalette_8wekyb3d8bbwe!App"
 
 Write-Host ""
 Write-Host "Done. Verify:"
