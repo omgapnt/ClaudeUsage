@@ -1,13 +1,17 @@
 # ClaudeUsage
 
-A PowerToys Command Palette (CmdPal) extension that displays your Claude Code subscription usage as a live dock band and detailed stats page.
+**See how much Claude Code you have left — right in your Windows dock.**
+
+A PowerToys Command Palette extension that pins your Claude subscription limits to the CmdPal dock as a live **"Claude 93%"** band. Click it for the full picture:
+
+![Claude usage stats page showing session, weekly and per-model progress bars](docs/stats-page.png)
 
 ## Features
 
-- **Dock band**: Live usage indicator showing session % left and weekly % left
-- **Stats page**: Pretty breakdown of all usage limits with progress bars (unicode blocks)
-- **Low battery alert**: Icon changes when session usage is over 80% (< 20% left)
-- **Zero-phone-home**: Only communicates with Anthropic's official API; no telemetry
+- **Dock band**: live indicator of your 5-hour session (% left), with weekly % and reset time in the subtitle
+- **Stats page**: session, weekly, and per-model limits as progress bars, with reset countdowns and a one-click refresh
+- **Low battery alert**: the icon fills orange when less than 20% of your session remains
+- **Zero phone-home**: talks only to Anthropic's official usage API with the token Claude Code already stores locally; no telemetry, nothing else leaves your machine
 
 ## Requirements
 
