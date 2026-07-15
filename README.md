@@ -25,11 +25,13 @@ A PowerToys Command Palette extension that pins your Claude subscription limits 
 
 ## Installation
 
-1. Clone/download this repo
-2. Run `build-and-install.ps1` from a normal PowerShell prompt
-3. On first install, UAC prompts once to trust the dev certificate; updates install without elevation
-4. Open Command Palette (Win+Alt+Space)
-5. Enable "Claude usage" in Dock settings to see the live band
+### Step-by-Step
+
+1. **Clone** → `git clone https://github.com/omgapnt/ClaudeUsage.git && cd ClaudeUsage`
+2. **Run installer** → `.\build-and-install.ps1`
+   - If you get "script disabled" → `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`
+3. **Restart** Command Palette
+4. **Enable** in Dock settings
 
 ## How it Works
 
