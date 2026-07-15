@@ -1,5 +1,9 @@
 # ClaudeUsage
 
+![Windows 11](https://img.shields.io/badge/Windows-11%2B-0078D4)
+![PowerToys](https://img.shields.io/badge/PowerToys-0.9%2B-blue)
+![MIT](https://img.shields.io/badge/License-MIT-green)
+
 **See how much Claude Code you have left — right in your Windows dock.**
 
 A PowerToys Command Palette extension that pins your Claude subscription limits to the CmdPal dock as a live **"Claude 93%"** band. Click it for the full picture:
