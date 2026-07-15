@@ -12,10 +12,10 @@ A PowerToys Command Palette extension that pins your Claude subscription limits 
 
 ## Features
 
-- **Dock band**: live indicator of your 5-hour session (% left), with weekly % and reset time in the subtitle
-- **Stats page**: session, weekly, and per-model limits as progress bars, with reset countdowns and a one-click refresh
-- **Low battery alert**: the icon fills orange when less than 20% of your session remains
-- **Zero phone-home**: talks only to Anthropic's official usage API with the token Claude Code already stores locally; no telemetry, nothing else leaves your machine
+- **⚡ Dock band**: live indicator of your 5-hour session (% left), with weekly % and reset time in the subtitle
+- **📊 Stats page**: session, weekly, and per-model limits as progress bars, with reset countdowns and a one-click refresh
+- **🎨 Smart color alerts**: the icon fills orange when less than 20% of your session remains
+- **🔒 Zero telemetry**: talks only to Anthropic's official usage API with the token Claude Code already stores locally; no telemetry, nothing else leaves your machine
 
 ## Requirements
 
