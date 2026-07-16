@@ -8,7 +8,7 @@
 
 A PowerToys Command Palette extension that pins your Claude subscription limits to the CmdPal dock as a live **"Claude 93%"** band. Click it for the full picture:
 
-![Claude usage stats page showing session, weekly and per-model progress bars](docs/stats-page.png)
+![Claude usage stats page showing session, weekly and per-model progress bars](docs/ClaudeUsage.png)
 
 ## Features
 
